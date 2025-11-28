@@ -1,2 +1,2 @@
 # metricasdapaisagem
-Este script automatiza o processo de obtenção de métricas de paisagem usando a classificação do MapBiomas - This script automates the process of obtaining landscape metrics using MapBiomas classification
+Automated calculation of landscape ecology metrics (fragmentation, shape, and edge indices) based on MapBiomas Collection 10 land cover data using Google Earth Engine - Cálculo automatizado de métricas de ecologia da paisagem (fragmentação, forma e borda) baseado em dados do MapBiomas Coleção 10 usando Google Earth Engine.
