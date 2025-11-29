@@ -1,0 +1,377 @@
+// autor: Hiago liberato 
+// parte 2 das métricas da paisagem - analisar as classes de origem de perda e ganho de vegetação no período desejado
+
+var nomeDoMunicipio = 'Extrema'; 
+var anoBase = 2004;
+var anoFinal = 2024;
+
+// Classes de vegetação natural
+var classesNaturais = [3,4,5,6,49,11,12,32,50];
+
+
+var municipios = ee.FeatureCollection('projects/primeiro-468814/assets/BR_Municipios_2024');
+var municipioSelecionado = municipios.filter(ee.Filter.eq('NM_MUN', nomeDoMunicipio));
+if (municipioSelecionado.size().getInfo() === 0) {
+  throw new Error('Município não encontrado! Verifique o nome: ' + nomeDoMunicipio);
+}
+
+var mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2');
+
+// PREPARAÇÃO DAS BANDAS
+var bandaBase = 'classification_' + anoBase;
+var bandaFinal = 'classification_' + anoFinal;
+var imgBase = mapbiomas.select(bandaBase).clip(municipioSelecionado);
+var imgFinal = mapbiomas.select(bandaFinal).clip(municipioSelecionado);
+
+var pixelAreaHa = ee.Image.pixelArea().divide(10000).rename('area_ha');
+var regionGeom = municipioSelecionado.geometry();
+
+//LEGENDA 
+var mapbiomasLegendNames = {
+  '1': 'Floresta',
+  '3': 'Formação Florestal', '4': 'Formação Savânica', '5': 'Mangue', '6': 'Floresta Alagável', '49': 'Restinga Arbórea',
+  '10': 'Vegetação Herbácea e Arbustiva', '11': 'Campo Alagado e Área Pantanosa', '12': 'Formação Campestre',
+  '32': 'Apicum', '29': 'Afloramento Rochoso', '50': 'Restinga Herbácea',
+  '14': 'Agropecuária', '15': 'Pastagem', '18': 'Agricultura', '19': 'Lavoura Temporária',
+  '39': 'Soja', '20': 'Cana', '40': 'Arroz', '62': 'Algodão (beta)', '41': 'Outras Lavouras Temporárias',
+  '36': 'Lavoura Perene', '46': 'Café', '47': 'Citrus', '35': 'Dendê', '48': 'Outras Lavouras Perenes',
+  '9': 'Silvicultura', '21': 'Mosaico de Usos', '22': 'Área não Vegetada', '23': 'Praia, Duna e Areal',
+  '24': 'Área Urbanizada', '30': 'Mineração', '75': 'Usina Fotovoltaica (beta)', '25': 'Outras Áreas não Vegetadas',
+  '26': "Corpo D'água", '33': 'Rio, Lago e Oceano', '31': 'Aquicultura', '27': 'Não observado'
+};
+var legendDict = ee.Dictionary(mapbiomasLegendNames);
+
+//PALETA OFICIAL MAPBIOMAS
+var MAX_CODE = 75;
+var mapbiomas_palette = [];
+for (var i = 0; i <= MAX_CODE; i++) mapbiomas_palette[i] = '808080';
+
+function addColor(code, hex) { if (code <= MAX_CODE) mapbiomas_palette[code] = hex; }
+
+addColor(3, '#1f8d49');  addColor(4, '#7dc975');  addColor(5, '#04381d');  addColor(6, '#007785');
+addColor(49, '#02d659'); addColor(11, '#519799'); addColor(12, '#d6bc74'); addColor(32, '#fc8114');
+addColor(29, '#ffaa5f'); addColor(50, '#ad5100'); addColor(15, '#edde8e'); addColor(19, '#C27BA0');
+addColor(39, '#f5b3c8'); addColor(20, '#db7093'); addColor(40, '#c71585'); addColor(62, '#ff69b4');
+addColor(41, '#f54ca9'); addColor(36, '#d082de'); addColor(46, '#d68fe2'); addColor(47, '#9932cc');
+addColor(35, '#9065d0'); addColor(48, '#e6ccff'); addColor(9, '#7a5900');  addColor(21, '#ffefc3');
+addColor(23, '#ffa07a'); addColor(24, '#d4271e'); addColor(30, '#9c0027'); addColor(75, '#c12100');
+addColor(25, '#db4d4f'); addColor(33, '#2532e4'); addColor(31, '#091077'); addColor(27, '#ffffff');
+addColor(0, '#ffffff');
+
+var paletteArray = mapbiomas_palette.slice(0, MAX_CODE + 1);
+
+//CALCULAR ÁREAS
+function calcGroupsForYear(yearImage, regionGeom) {
+  var img = pixelAreaHa.addBands(yearImage.rename('class'));
+  var groups = img.reduceRegion({
+    reducer: ee.Reducer.sum().group({groupField: 1, groupName: 'class'}),
+    geometry: regionGeom,
+    scale: 30,
+    maxPixels: 1e13,
+    tileScale: 8
+  }).get('groups');
+  return ee.List(ee.Algorithms.If(groups, groups, []));
+}
+
+function groupsToDict(groups) {
+  groups = ee.List(groups);
+  return ee.Dictionary(groups.iterate(function(item, acc){
+    item = ee.Dictionary(item);
+    var code = ee.Algorithms.If(item.contains('class'), item.get('class'), item.get('group'));
+    var sum = ee.Number(item.get('sum'));
+    return ee.Dictionary(acc).set(ee.Number(code).format(), sum);
+  }, ee.Dictionary({})));
+}
+
+// CÁLCULOS PRINCIPAIS
+var dictBase = groupsToDict(calcGroupsForYear(imgBase, regionGeom));
+var dictFinal = groupsToDict(calcGroupsForYear(imgFinal, regionGeom));
+
+var keys = dictBase.keys().cat(dictFinal.keys()).distinct()
+             .map(function(k){ return ee.Number.parse(k).toInt(); }).sort();
+
+var areaMunicipioHa = municipioSelecionado.geometry().area().divide(10000);
+
+// MONTA FEATURES POR CLASSE
+var features = keys.map(function(k){
+  var code = ee.Number(k).toInt();
+  var codeStr = code.format();
+  var areaB = ee.Number(dictBase.get(codeStr, 0));
+  var areaF = ee.Number(dictFinal.get(codeStr, 0));
+  var percB = ee.Algorithms.If(areaMunicipioHa.gt(0), areaB.divide(areaMunicipioHa).multiply(100), 0);
+  var percF = ee.Algorithms.If(areaMunicipioHa.gt(0), areaF.divide(areaMunicipioHa).multiply(100), 0);
+
+  var label = ee.Algorithms.If(
+    ee.Dictionary(legendDict).contains(codeStr),
+    ee.String(ee.Dictionary(legendDict).get(codeStr)),
+    ee.String('Cód. ').cat(codeStr)
+  );
+
+  return ee.Feature(null)
+    .set('Municipio', nomeDoMunicipio)
+    .set('Classe_Uso_Solo_Code', code)
+    .set('Classe_Uso_Solo', label)
+    .set('Area_ha_' + anoBase, areaB)
+    .set('Area_ha_' + anoFinal, areaF)
+    .set('Percentual_' + anoBase, percB)
+    .set('Percentual_' + anoFinal, percF);
+});
+
+var tabelaFinal = ee.FeatureCollection(features);
+
+
+print('Tabela completa — Município: ' + nomeDoMunicipio + ' — ' + anoBase + ' vs ' + anoFinal, tabelaFinal);
+
+// CÁCULO ÁREA NATURAL
+function areaNaturalYear(img) {
+  var mask = img.remap(classesNaturais, classesNaturais.map(function(c){ return 1; }), 0);
+  var area = pixelAreaHa.updateMask(mask.eq(1)).reduceRegion({
+    reducer: ee.Reducer.sum(),
+    geometry: regionGeom,
+    scale: 30,
+    maxPixels: 1e13,
+    tileScale: 8
+  }).get('area_ha');
+  return ee.Number(ee.Algorithms.If(area, area, 0));
+}
+var areaNaturalBase = areaNaturalYear(imgBase);
+var areaNaturalFinal = areaNaturalYear(imgFinal);
+print('Área Natural (' + anoBase + ') [ha]:', areaNaturalBase);
+print('Área Natural (' + anoFinal + ') [ha]:', areaNaturalFinal);
+
+
+// TABELA
+var tabelaUI = ui.Chart.feature.byFeature({
+  features: tabelaFinal,
+  xProperty: 'Classe_Uso_Solo',  // coluna principal (classe de uso do solo)
+  yProperties: [
+    'Area_ha_' + anoBase,
+    'Area_ha_' + anoFinal,
+    'Percentual_' + anoBase,
+    'Percentual_' + anoFinal
+  ]
+}).setChartType('Table');
+
+print('Tabela completa de Uso do Solo — Município: ' + nomeDoMunicipio, tabelaUI);
+
+
+
+// máscara de natural no anoBase (1 = natural)
+var mascaraNaturalA1 = imgBase.remap(classesNaturais, classesNaturais.map(function(c){ return 1; }), 0);
+// máscara de natural no anoFinal (1 = natural)
+var mascaraNaturalA2 = imgFinal.remap(classesNaturais, classesNaturais.map(function(c){ return 1; }), 0);
+
+// Perda: natural no base e não-natural no final (1 onde ocorreu PERDA)
+var perdaMask = mascaraNaturalA1.eq(1).and(mascaraNaturalA2.neq(1)).selfMask();
+
+// Ganho: não-natural no base e natural no final (1 onde ocorreu GANHO)
+var ganhoMask = mascaraNaturalA1.neq(1).and(mascaraNaturalA2.eq(1)).selfMask();
+
+// Para visualização: imagens com valor 1 onde ocorreu e 0 elsewhere
+var perdaImage = ee.Image(1).updateMask(perdaMask).rename('perda_nat');
+var ganhoImage = ee.Image(1).updateMask(ganhoMask).rename('ganho_nat');
+
+// Alternativa: imagens com a classe destino / origem (útil para checar destinos)
+var perdaDestino = imgFinal.updateMask(perdaMask).rename('destino_perda'); // mostra a classe atual onde houve perda
+var ganhoOrigem = imgBase.updateMask(ganhoMask).rename('origem_ganho');    // mostra a classe anterior onde houve ganho
+
+//ÁREAS DE PERDA E GANHO (ha) E PERCENTUAIS
+var areaPerdaHa = ee.Number(pixelAreaHa.updateMask(perdaMask).reduceRegion({
+  reducer: ee.Reducer.sum(),
+  geometry: regionGeom, scale: 30, maxPixels: 1e13, tileScale: 8
+}).get('area_ha')).max(0);
+
+var areaGanhoHa = ee.Number(pixelAreaHa.updateMask(ganhoMask).reduceRegion({
+  reducer: ee.Reducer.sum(),
+  geometry: regionGeom, scale: 30, maxPixels: 1e13, tileScale: 8
+}).get('area_ha')).max(0);
+
+print('Área perdida (natural -> não-natural) [ha]:', areaPerdaHa);
+print('Área ganha (não-natural -> natural) [ha]:', areaGanhoHa);
+print('Percentual do município perdido (%):', areaPerdaHa.divide(areaMunicipioHa).multiply(100));
+print('Percentual do município ganho (%):', areaGanhoHa.divide(areaMunicipioHa).multiply(100));
+
+
+
+//EXPORTAÇÃO CSV
+Export.table.toDrive({
+  collection: tabelaFinal,
+  description: 'MapBiomas_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_vs_' + anoFinal,
+  fileFormat: 'CSV',
+  selectors: [
+    'Municipio',
+    'Classe_Uso_Solo_Code',
+    'Classe_Uso_Solo',
+    'Area_ha_' + anoBase,
+    'Area_ha_' + anoFinal,
+    'Percentual_' + anoBase,
+    'Percentual_' + anoFinal
+  ]
+});
+
+// Exportar máscara de Perda (raster binário)
+Export.image.toDrive({
+  image: perdaImage.unmask(0).toByte(),
+  description: 'Perda_Vegetacao_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  folder: 'GEE_Export',
+  fileNamePrefix: 'Perda_Veg_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  region: regionGeom,
+  scale: 30,
+  crs: 'EPSG:3857',
+  maxPixels: 1e13
+});
+
+// Exportar máscara de Ganho (raster binário)
+Export.image.toDrive({
+  image: ganhoImage.unmask(0).toByte(),
+  description: 'Ganho_Vegetacao_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  folder: 'GEE_Export',
+  fileNamePrefix: 'Ganho_Veg_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  region: regionGeom,
+  scale: 30,
+  crs: 'EPSG:3857',
+  maxPixels: 1e13
+});
+
+// Exportar raster com classes destino nas áreas de perda (útil para checar onde foi convertido e em que classe)
+Export.image.toDrive({
+  image: perdaDestino.unmask(0).toInt(),
+  description: 'Perda_Destino_Classe_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  folder: 'GEE_Export',
+  fileNamePrefix: 'Perda_Destino_Classe_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  region: regionGeom,
+  scale: 30,
+  crs: 'EPSG:3857',
+  maxPixels: 1e13
+});
+
+// Exportar raster com classes origem nas áreas de ganho (útil para checar uso anterior)
+Export.image.toDrive({
+  image: ganhoOrigem.unmask(0).toInt(),
+  description: 'Ganho_Origem_Classe_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  folder: 'GEE_Export',
+  fileNamePrefix: 'Ganho_Origem_Classe_' + nomeDoMunicipio.replace(/ /g,'_') + '_' + anoBase + '_' + anoFinal,
+  region: regionGeom,
+  scale: 30,
+  crs: 'EPSG:3857',
+  maxPixels: 1e13
+});
+
+
+//VISUALIZAÇÃO MAPBIOMAS
+var visParams = {min: 0, max: MAX_CODE, palette: paletteArray};
+Map.centerObject(municipioSelecionado, 10);
+Map.addLayer(imgBase, visParams, 'MapBiomas ' + anoBase);
+Map.addLayer(imgFinal, visParams, 'MapBiomas ' + anoFinal);
+
+// Camadas de perda/ganho (binaries)
+Map.addLayer(perdaImage, {palette: ['#ff0000']}, 'Perda Vegetação (natural → não-natural)', true);
+Map.addLayer(ganhoImage, {palette: ['#00ff00']}, 'Ganho Vegetação (não-natural → natural)', true);
+
+// Camadas com classes (destino/origem) para inspeção visual (opcional)
+Map.addLayer(perdaDestino, visParams, 'Classes Destino nas Áreas de Perda (verde=classes?)', false);
+Map.addLayer(ganhoOrigem, visParams, 'Classes Origem nas Áreas de Ganho (ano base)', false);
+
+
+// camada de mudança
+var changed = imgBase.neq(imgFinal).selfMask();
+Map.addLayer(changed, {palette:['#ff0000']}, 'Mudanças (' + anoBase + ' → ' + anoFinal + ')');
+
+
+
+
+// TABELA UI: SALDO LÍQUIDO DE TRANSIÇÃO (Visualização em Tabela)
+
+
+
+// Legenda
+var nomesClasses = {
+  '15': 'Pastagem', '21': 'Mosaico de Usos', '9': 'Silvicultura',
+  '3': 'Formação Florestal', '4': 'Formação Savânica', '12': 'Formação Campestre',
+  '24': 'Área Urbanizada', '33': 'Rio, Lago e Oceano', '19': 'Lavoura Temporária',
+  '46': 'Café', '25': 'Outras Áreas não Vegetadas', '41': 'Outras Lavouras',
+  '20': 'Cana', '39': 'Soja', '48': 'Outras Perenes'
+};
+
+// 2. Recriar Máscaras Locais
+var binBase_local = imgBase.remap(classesNaturais, ee.List.repeat(1, classesNaturais.length), 0);
+var binFinal_local = imgFinal.remap(classesNaturais, ee.List.repeat(1, classesNaturais.length), 0);
+
+var maskGanhoLiq = binBase_local.eq(0).and(binFinal_local.eq(1)); 
+var maskPerdaLiq = binBase_local.eq(1).and(binFinal_local.eq(0)); 
+
+// 3. Calcular Áreas
+// Ganho (Origem em 2004)
+var statsGanho = pixelAreaHa.addBands(imgBase).updateMask(maskGanhoLiq).reduceRegion({
+  reducer: ee.Reducer.sum().group(1, 'classe'), geometry: regionGeom, scale: 30, maxPixels: 1e13
+});
+// Perda (Destino em 2024)
+var statsPerda = pixelAreaHa.addBands(imgFinal).updateMask(maskPerdaLiq).reduceRegion({
+  reducer: ee.Reducer.sum().group(1, 'classe'), geometry: regionGeom, scale: 30, maxPixels: 1e13
+});
+
+// 4. Processar e Criar Tabela 
+ee.Dictionary({
+  'ganhos': statsGanho.get('groups'),
+  'perdas': statsPerda.get('groups')
+}).evaluate(function(resultado) {
+  
+  var processar = function(lista) {
+    var dict = {};
+    if (lista) lista.forEach(function(item) { dict[item.classe] = item.sum; });
+    return dict;
+  };
+
+  var ganhos = processar(resultado.ganhos);
+  var perdas = processar(resultado.perdas);
+  var featuresLista = [];
+  var saldoTotal = 0;
+
+  var todasClasses = Object.keys(ganhos).concat(Object.keys(perdas)).filter(function(item, pos, self) {
+    return self.indexOf(item) == pos;
+  });
+
+  todasClasses.forEach(function(code) {
+    var g = ganhos[code] || 0;
+    var p = perdas[code] || 0;
+    var saldo = g - p;
+    saldoTotal += saldo;
+
+    // Filtra valores muito pequenos para limpar a visualização
+    if (Math.abs(saldo) > 0.1 || g > 1 || p > 1) {
+      var nomeClasse = nomesClasses[code] || 'Cód. ' + code;
+      
+      // Cria a Feature para a tabela
+      featuresLista.push(ee.Feature(null, {
+        'Classe': nomeClasse,
+        'Saldo Líquido (ha)': saldo,
+        'Ganho (ha)': g,
+        'Perda (ha)': p
+      }));
+    }
+  });
+
+  // Ordena do maior saldo positivo para o maior negativo
+  var fcTabela = ee.FeatureCollection(featuresLista).sort('Saldo Líquido (ha)', false);
+
+  // Cria o Gráfico do tipo Tabela
+  var tabelaChart = ui.Chart.feature.byFeature({
+    features: fcTabela,
+    xProperty: 'Classe',
+    yProperties: ['Saldo Líquido (ha)', 'Ganho (ha)', 'Perda (ha)']
+  })
+  .setChartType('Table')
+  .setOptions({
+    allowHtml: true,
+    pageSize: 15,
+    width: '100%',
+    sortColumn: 1, // Ordena pela coluna de Saldo
+    sortAscending: false
+  });
+
+  print('--- TABELA DE SALDO LÍQUIDO DA VEGETAÇÃO (' + anoBase + ' -> ' + anoFinal + ') ---');
+  print('Saldo Total Geral: ' + saldoTotal.toLocaleString('pt-BR', {maximumFractionDigits: 2}) + ' ha');
+  print(tabelaChart);
+});
+
+
