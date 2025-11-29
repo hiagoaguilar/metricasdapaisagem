@@ -20,7 +20,7 @@ var mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collectio
 var bandaAno = 'classification_' + ano;
 var mapbiomasRecortado = mapbiomas.select(bandaAno).clip(municipioSelecionado);
 
-// 4. Paleta MapBiomas (Seu código original)
+// 4. Paleta MapBiomas
 var MAX_CODE = 75;
 var mapbiomas_palette = [];
 for (var i = 0; i <= MAX_CODE; i++) mapbiomas_palette[i] = '808080';
@@ -255,7 +255,7 @@ var listaFeaturesCSV = limites.map(function(limite){
 
 var tabelaExport = ee.FeatureCollection(listaFeaturesCSV);
 
-// tabela bonita
+// tabela
 var colunas = [
   'classe_tamanho',
   'num_frag','perc_num',
