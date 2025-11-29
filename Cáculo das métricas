@@ -1,5 +1,5 @@
 //AUTOR: Hiago Liberato
-//
+// cálculo das métricas das paisagens naturais de qualquer município brasileiro
 
 
 var nomeDoMunicipio = 'Extrema';
