@@ -1,9 +1,11 @@
+// link do projeto: https://code.earthengine.google.com/3d7a7d99d19c25cff4257705deed1537
+
 // autor: Hiago liberato 
 // parte 2 das métricas da paisagem - analisar as classes de origem de perda e ganho de vegetação no período desejado
 
-var nomeDoMunicipio = 'Extrema'; 
-var anoBase = 2004;
-var anoFinal = 2024;
+var nomeDoMunicipio = 'Extrema'; //Digite o município desejado
+var anoBase = 2004; // Digite o ano do desejado
+var anoFinal = 2024; //Digite o ano desejado
 
 // Classes de vegetação natural
 var classesNaturais = [3,4,5,6,49,11,12,32,50];
