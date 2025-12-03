@@ -1,9 +1,11 @@
+//link do projeto: https://code.earthengine.google.com/7a155eee6cd8c7daf2aa6d6a37d9c6c5
+
 //AUTOR: Hiago Liberato
-// cálculo das métricas das paisagens naturais de qualquer município brasileiro
+//cálculo das métricas das paisagens naturais de qualquer município brasileiro
 
 
-var nomeDoMunicipio = 'Extrema';
-var ano = 2024;
+var nomeDoMunicipio = 'Extrema'; //Digite o município desejado
+var ano = 2024; //Digite o ano desejado
 
 var municipios = ee.FeatureCollection('projects/primeiro-468814/assets/BR_Municipios_2024');
 var municipioSelecionado = municipios.filter(ee.Filter.eq('NM_MUN', nomeDoMunicipio));
