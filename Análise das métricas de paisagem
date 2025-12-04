@@ -35,7 +35,6 @@ addColor(41, '#f54ca9'); addColor(36, '#d082de'); addColor(46, '#d68fe2'); addCo
 addColor(35, '#9065d0'); addColor(48, '#e6ccff'); addColor(9, '#7a5900');  addColor(21, '#ffefc3');
 addColor(23, '#ffa07a'); addColor(24, '#d4271e'); addColor(30, '#9c0027'); addColor(75, '#c12100');
 addColor(25, '#db4d4f'); addColor(33, '#2532e4'); addColor(31, '#091077'); addColor(27, '#ffffff');
-addColor(0, '#ffffff');
 var visualizacao = { min: 0, max: MAX_CODE, palette: mapbiomas_palette };
 
 // RECLASSIFICAÇÃO: Formações Naturais (BINÁRIO)
@@ -203,9 +202,7 @@ var exibirTabela = function(resultados_js){
   print('Ano de Análise:', ano);
   print('Área Total de Fragmentos (ha):', formatarNumero(areaTotal,2));
   print('Número Total de Fragmentos:', formatarNumero(numTotal,0));
-  print('-------------------------------------');
-  print('Classe | Nº Frag. | % Nº | Área (ha) | % Área | MPS (ha) | PSSD (ha) | PSCoV (%) | TE (m) | PERIM (m) | ED (m/ha) | MSI Médio | AWMSI | MPFD (mean) | AWMPFD');
-  print('---------------------------------------------------------------------------------------------------------------------------------------------------');
+  
 
   limites.forEach(function(limite){
     var dados = resultados_js[limite.nome];
@@ -280,7 +277,7 @@ var tabelaUI = ui.Chart.feature.byFeature({
 
 print('Tabela de métricas por classe de tamanho:', tabelaUI);
 
-// Export CSV
+// EXPORT 1: CSV da Tabela
 var nomeArquivo = 'Metricas_Fragmentacao_' + nomeDoMunicipio.replace(/ /g, '_') + '_' + ano;
 Export.table.toDrive({
   collection: tabelaExport,
@@ -288,15 +285,13 @@ Export.table.toDrive({
   fileFormat: 'CSV'
 });
 
-
-// EXPORTAR RASTER BINÁRIO "FORMAÇÕES NATURAIS" 
-var nomeArquivo = 'Formacoes_Naturais_' + nomeDoMunicipio.replace(/ /g, '_') + '_' + ano;
-
+// EXPORT 2: RASTER BINÁRIO "FORMAÇÕES NATURAIS" 
+var nomeArquivoBin = 'Formacoes_Naturais_' + nomeDoMunicipio.replace(/ /g, '_') + '_' + ano;
 Export.image.toDrive({
   image: imagemNaturalBinaria,  
-  description: nomeArquivo,
+  description: nomeArquivoBin,
   folder: 'GEE_Exports',  
-  fileNamePrefix: nomeArquivo,
+  fileNamePrefix: nomeArquivoBin,
   region: municipioSelecionado.geometry(),
   scale: 30,
   maxPixels: 1e13,
@@ -305,8 +300,7 @@ Export.image.toDrive({
 
 
 
-
-// VISUALIZAÇÃO
+// EXPORT CLASSIFICADO
 
 var classificarTamanho = function(feature){
   var area = feature.getNumber('area_ha');
@@ -319,6 +313,24 @@ var classificarTamanho = function(feature){
 var fragmentosClassificados = fragmentosCollection.map(classificarTamanho);
 var visParamsFragmentos = {min:1, max:4, palette:['#ffffcc','#a1dab4','#41b6c4','#225ea8']};
 var imagemClassificada = ee.Image(0).selfMask().paint(fragmentosClassificados,'classe_tamanho');
+
+
+// EXPORT 3: RASTER CLASSIFICADO
+var nomeArquivoRaster = 'Raster_Classificado_' + nomeDoMunicipio.replace(/ /g, '_') + '_' + ano;
+
+Export.image.toDrive({
+  image: imagemClassificada, 
+  description: nomeArquivoRaster,
+  folder: 'GEE_Exports',
+  fileNamePrefix: nomeArquivoRaster,
+  region: municipioSelecionado.geometry(),
+  scale: 30,
+  maxPixels: 1e13,
+  fileFormat: 'GeoTIFF'
+});
+
+
+// VISUALIZAÇÃO NO MAPA
 var visualizacaoNatural = {min:0, max:1, palette:['808080','00FF00']};
 
 Map.centerObject(municipioSelecionado, 10);
@@ -336,6 +348,9 @@ var makeRow = function(color,name){
 };
 legenda.add(makeRow('#ffffcc','< 5 ha'));
 legenda.add(makeRow('#a1dab4','5 - 10 ha'));
+legenda.add(makeRow('#41b6c4','10 - 100 ha'));
+legenda.add(makeRow('#225ea8','> 100 ha'));
+Map.add(legenda);
 legenda.add(makeRow('#41b6c4','10 - 100 ha'));
 legenda.add(makeRow('#225ea8','> 100 ha'));
 Map.add(legenda);
