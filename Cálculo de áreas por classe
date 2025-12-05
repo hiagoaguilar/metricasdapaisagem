@@ -19,14 +19,11 @@ var MAX_PIXELS = 1e13;
 var TILE_SCALE = 8;
 var pixelAreaHa = ee.Image.pixelArea().divide(10000).rename('area_ha');
 
-// Busca município 
 var municipioSelecionado = municipios.filter(ee.Filter.eq('NM_MUN', nomeDoMunicipio));
-var municipioCount = municipioSelecionado.size();
-municipioCount.evaluate(function(c){
-  if (c === 0) {
-    print('Aviso: município não encontrado ->', nomeDoMunicipio);
-  }
-});
+if (municipioSelecionado.size().getInfo() === 0) {
+  throw new Error('Município não encontrado! Verifique o nome digitado: ' + nomeDoMunicipio);
+}
+
 
 // Prepara imagens para cada ano
 var bandaBase = 'classification_' + anoBase;
