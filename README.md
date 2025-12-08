@@ -44,11 +44,10 @@ Ao executar o script, são gerados:
 4.  **Raster GeoTIFF:** Imagem binária das formações naturais para uso posterior em SIG (QGIS/ArcGIS).
 
 ##  Como Utilizar
-1.  Acesse o [Google Earth Engine Code Editor](https://code.earthengine.google.com/).
-2.  Copie o código do arquivo `script.js` deste repositório.
-3.  Adicione a camada da malha municipal do IBGE nos assets e subistuia o caminho da variável 'municipios'
-4.  Altere a variável `nomeDoMunicipio` na linha 1 para o local desejado.
-5.  Clique em **Run**.
+1.  Acesse o link do projeto disponível no início dos documentos "Análise das métricas de paisagem" e "Cálculo de áreas por classe".
+2.  O script ira executar automaticamente
+3.  Altere a variável `nomeDoMunicipio` na linha 1 para o local desejado.
+4.  Clique em **Run**.
 
 ---
 *Desenvolvido no âmbito acadêmico para análise da paisagem florestal.*
