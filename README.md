@@ -45,7 +45,7 @@ Ao executar o script, são gerados:
 
 ##  Como Utilizar
 1.  Acesse o link do projeto disponível no início dos documentos "Análise das métricas de paisagem" e "Cálculo de áreas por classe".
-2.  O script ira executar automaticamente
+2.  O script irá executar automaticamente
 3.  Altere a variável `nomeDoMunicipio` na linha 1 para o local desejado.
 4.  Clique em **Run**.
 
