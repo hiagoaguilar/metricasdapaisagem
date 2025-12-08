@@ -197,31 +197,13 @@ var exibirTabela = function(resultados_js){
     if(num === null || num === undefined) return 'N/A';
     return num.toLocaleString('pt-BR', {minimumFractionDigits: casasDecimais, maximumFractionDigits: casasDecimais});
   };
-  print('--- Análise Métrica de Fragmentação ---');
+  
   print('Município:', nomeMun);
   print('Ano de Análise:', ano);
   print('Área Total de Fragmentos (ha):', formatarNumero(areaTotal,2));
   print('Número Total de Fragmentos:', formatarNumero(numTotal,0));
   
-
-  limites.forEach(function(limite){
-    var dados = resultados_js[limite.nome];
-    var percentNum = (numTotal && numTotal>0) ? (dados.num_frag/numTotal)*100 : 0;
-    var percentArea = (areaTotal && areaTotal>0) ? (dados.area_ha/areaTotal)*100 : 0;
-    print(
-      limite.nome + ' | ' + formatarNumero(dados.num_frag,0) + ' | ' + formatarNumero(percentNum,2) + '% | ' +
-      formatarNumero(dados.area_ha,2) + ' | ' + formatarNumero(percentArea,2) + '% | ' +
-      formatarNumero(dados.mps_ha,2) + ' | ' + 
-      formatarNumero(dados.pssd_ha,2) + ' | ' + 
-      formatarNumero(dados.pscov_pct,2) + ' | ' + formatarNumero(dados.te_m,2) + ' | ' +
-      formatarNumero(dados.perim_mean,2) + ' | ' +
-      formatarNumero(dados.ed_m_ha,2) + ' | ' +
-      formatarNumero(dados.msi_mean,3) + ' | ' +
-      formatarNumero(dados.awmsi,4) + ' | ' +
-      formatarNumero(dados.mpfd_mean,4) + ' | ' + formatarNumero(dados.awmpfd,4)
-    );
-  });
-};
+}
 
 resultados.evaluate(exibirTabela);
 
@@ -348,9 +330,6 @@ var makeRow = function(color,name){
 };
 legenda.add(makeRow('#ffffcc','< 5 ha'));
 legenda.add(makeRow('#a1dab4','5 - 10 ha'));
-legenda.add(makeRow('#41b6c4','10 - 100 ha'));
-legenda.add(makeRow('#225ea8','> 100 ha'));
-Map.add(legenda);
 legenda.add(makeRow('#41b6c4','10 - 100 ha'));
 legenda.add(makeRow('#225ea8','> 100 ha'));
 Map.add(legenda);
